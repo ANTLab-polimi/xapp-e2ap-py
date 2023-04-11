@@ -29,7 +29,7 @@ class SdlManager(_BaseManager):
         super().__init__(rmr_xapp)
 
     def sdlGetGnbList(self):
-        gnblist = self._rmr_xapp.sdl_find_and_get(self.__namespace, "GNB")
+        gnblist = self._rmr_xapp.sdl_find_and_get(self.__namespace, "GNB",usemsgpack=False)
         self.logger.info("SdlManager.sdlGetGnbList:: Processed request: {}".format(json.dumps(gnblist)))
 
     def sdlGetEnbList(self):

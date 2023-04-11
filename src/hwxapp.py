@@ -30,30 +30,33 @@ from mdclogpy import Logger
 class HWXapp:
 
     def __init__(self):
+        print("this is the __init__")
         fake_sdl = getenv("USE_FAKE_SDL", False)
         self._rmr_xapp = RMRXapp(self._default_handler,
                                  config_handler=self._handle_config_change,
                                  rmr_port=4560,
                                  post_init=self._post_init,
-                                 use_fake_sdl=bool(fake_sdl))
+                                 rmr_wait_for_ready=True,
+                                 use_fake_sdl=False)
 
     def _post_init(self, rmr_xapp):
         """
         Function that runs when xapp initialization is complete
         """
+        print("this is the post init")
         rmr_xapp.logger.info("HWXapp.post_init :: post_init called")
         # self.sdl_alarm_mgr = SdlAlarmManager()
         sdl_mgr = SdlManager(rmr_xapp)
         sdl_mgr.sdlGetGnbList()
-        a1_mgr = A1PolicyManager(rmr_xapp)
-        a1_mgr.startup()
-        sub_mgr = SubscriptionManager(rmr_xapp)
-        enb_list = sub_mgr.get_enb_list()
-        for enb in enb_list:
-            sub_mgr.send_subscription_request(enb)
-        gnb_list = sub_mgr.get_gnb_list()
-        for gnb in gnb_list:
-            sub_mgr.send_subscription_request(gnb)
+        #a1_mgr = A1PolicyManager(rmr_xapp)
+        #a1_mgr.startup()
+        #sub_mgr = SubscriptionManager(rmr_xapp)
+        #enb_list = sub_mgr.get_enb_list()
+        #for enb in enb_list:
+        #    sub_mgr.send_subscription_request(enb)
+        #gnb_list = sub_mgr.get_gnb_list()
+        #for gnb in gnb_list:
+        #    sub_mgr.send_subscription_request(gnb)
         metric_mgr = MetricManager(rmr_xapp)
         metric_mgr.send_metric()
 
