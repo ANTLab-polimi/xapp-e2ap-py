@@ -34,7 +34,8 @@ class SubscriptionManager(_BaseManager):
 
     def get_gnb_list(self):
         gnblist = self._rmr_xapp.get_list_gnb_ids()   # yet to come in library
-        self.logger.info("SubscriptionManager.getGnbList:: Processed request: {}".format(json.dumps(gnblist)))
+        #print(gnblist)
+       # self.logger.info("SubscriptionManager.getGnbList:: Processed request: {}".format(json.dumps(gnblist)))
         return gnblist
 
     def get_enb_list(self):
@@ -44,6 +45,7 @@ class SubscriptionManager(_BaseManager):
 
     def send_subscription_request(self,xnb_id):
         subscription_request = {"xnb_id": xnb_id, "action_type": Constants.ACTION_TYPE}
+        json_object = json.dumps(subscription_request,indent=4)
         try:
             json_object = json.dumps(subscription_request,indent=4)
         except TypeError:
