@@ -102,9 +102,11 @@ class HWXapp:
         #metric_mgr.send_metric()
 
         #msgbuf = self.dummy_control_request()
-        msgbuf = self.e2ap_control_request(self.e2sm_dummy_control_buffer())
+        #msgbuf = self.e2ap_control_request(self.e2sm_dummy_control_buffer())
+        msgbuf = self.e2ap_sub_request(self.e2sm_dummy_control_buffer())
         self._rmr_send_w_meid(rmr_xapp,msgbuf,12040, bytes(gnb_list[0].inventory_name, 'ascii'))
         #rmr_xapp.rmr_send()
+
     @staticmethod
     def e2sm_dummy_control_buffer():
         print("encoding initial ric indication request")
@@ -116,6 +118,7 @@ class HWXapp:
         master_mess.ran_indication_request.CopyFrom(inner_mess)
         buf = master_mess.SerializeToString()
         return buf
+    
     @staticmethod
     def e2ap_control_request(payload):
         action_definitions = list()
@@ -136,11 +139,37 @@ class HWXapp:
         subsequent_actions.append(subsequent_action)
         control_request = ControlRequestMsg()
         try:
-            [lencc, bytescc] = control_request.encode(1, 1, 1, bytes([1]), bytes([1]), payload, 1)
+            [lencc, bytescc] = control_request.encode(1, 1, 1, bytes([1]), bytes([1]), payload, 0)
         except BaseException:
             assert False
         print("control request encoded {} bytes".format(lencc))
         return bytescc
+
+    @staticmethod
+    def e2ap_sub_request(payload):
+
+        action_definitions = list()
+
+        action_definition = ActionDefinition()
+        action_definition.action_definition = bytes([1])
+        action_definition.size = len(action_definition.action_definition)
+
+        action_definitions.append(action_definition)
+
+        subsequent_actions = list()
+
+        subsequent_action = SubsequentAction()
+        subsequent_action.is_valid = 1
+        subsequent_action.subsequent_action_type = 1
+        subsequent_action.time_to_wait = 1
+        subsequent_actions.append(subsequent_action)
+
+        sub_request = SubRequestMsg()
+        try:
+            sub_request.encode(1, 1, 1, payload, [1], [1],
+                            bytes([1]), bytes([1]))
+        except BaseException:
+            assert False
 
     def dummy_control_request():
         action_definitions = list()
