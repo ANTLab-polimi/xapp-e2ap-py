@@ -19,12 +19,20 @@
 from os import getenv
 from ricxappframe.xapp_frame import RMRXapp, rmr
 
+from ricxappframe.e2ap.asn1 import IndicationMsg, SubResponseMsg, SubRequestMsg, ControlRequestMsg, ActionDefinition, SubsequentAction, ARRAY, c_uint8
+
+
 
 from .utils.constants import Constants
 from .manager import *
 
 from .handler import *
 from mdclogpy import Logger
+
+SIZE = 256
+MRC_SEND = None
+MRC_RCV = None
+MRC_BUF_RCV = None
 
 
 class HWXapp:
@@ -38,6 +46,37 @@ class HWXapp:
                                  post_init=self._post_init,
                                  rmr_wait_for_ready=True,
                                  use_fake_sdl=False)
+    
+    @staticmethod
+    def _rmr_send_w_meid(rmr_xapp, payload, mtype, meid, retries=100):
+        """
+        Allocates a buffer, sets payload and mtype, and sends
+
+        Parameters
+        ----------
+        payload: bytes
+            payload to set
+        mtype: int
+            message type
+        retries: int (optional)
+            Number of times to retry at the application level before excepting RMRFailure
+
+        Returns
+        -------
+        bool
+            whether or not the send worked after retries attempts
+        """
+        sbuf = rmr.rmr_alloc_msg(vctx=rmr_xapp._mrc, size=len(payload), payload=payload, gen_transaction_id=True,
+                                 mtype=mtype, meid=meid)
+
+        for _ in range(retries):
+            sbuf = rmr.rmr_send_msg(rmr_xapp._mrc, sbuf)
+            if sbuf.contents.state == 0:
+                rmr_xapp.rmr_free(sbuf)
+                return True
+
+        rmr_xapp.rmr_free(sbuf)
+        return False
 
     def _post_init(self, rmr_xapp):
         """
@@ -47,18 +86,49 @@ class HWXapp:
         rmr_xapp.logger.info("HWXapp.post_init :: post_init called")
         # self.sdl_alarm_mgr = SdlAlarmManager()
         sdl_mgr = SdlManager(rmr_xapp)
-        sdl_mgr.sdlGetGnbList()
+        #sdl_mgr.sdlGetGnbList()
         #a1_mgr = A1PolicyManager(rmr_xapp)
         #a1_mgr.startup()
-        #sub_mgr = SubscriptionManager(rmr_xapp)
+        sub_mgr = SubscriptionManager(rmr_xapp)
         #enb_list = sub_mgr.get_enb_list()
         #for enb in enb_list:
         #    sub_mgr.send_subscription_request(enb)
-        #gnb_list = sub_mgr.get_gnb_list()
+        gnb_list = sub_mgr.get_gnb_list()
+        print(gnb_list)
         #for gnb in gnb_list:
         #    sub_mgr.send_subscription_request(gnb)
-        metric_mgr = MetricManager(rmr_xapp)
-        metric_mgr.send_metric()
+        #metric_mgr = MetricManager(rmr_xapp)
+        #metric_mgr.send_metric()
+
+        msgbuf = self.dummy_control_request()
+
+        self._rmr_send_w_meid(rmr_xapp,msgbuf,12040, bytes(gnb_list[0].inventory_name, 'ascii'))
+        #rmr_xapp.rmr_send()
+
+    def dummy_control_request():
+        action_definitions = list()
+
+        action_definition = ActionDefinition()
+        action_definition.action_definition = bytes([1])
+        action_definition.size = len(action_definition.action_definition)
+
+        action_definitions.append(action_definition)
+
+        subsequent_actions = list()
+
+        subsequent_action = SubsequentAction()
+        subsequent_action.is_valid = 1
+        subsequent_action.subsequent_action_type = 1
+        subsequent_action.time_to_wait = 1
+
+        subsequent_actions.append(subsequent_action)
+        control_request = ControlRequestMsg()
+        try:
+            [lencc, bytescc] = control_request.encode(1, 1, 1, bytes([1]), bytes([1]), bytes([1]), 1)
+        except BaseException:
+            assert False
+        print("control request encoded {} bytes".format(lencc))
+        return bytescc
 
     def _handle_config_change(self, rmr_xapp, config):
         """
@@ -98,3 +168,5 @@ class HWXapp:
         TODO: could we register a signal handler for Docker SIGTERM that calls this?
         """
         self._rmr_xapp.stop()
+
+    
