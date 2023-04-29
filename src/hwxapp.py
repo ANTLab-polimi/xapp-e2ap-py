@@ -21,6 +21,7 @@ from ricxappframe.xapp_frame import RMRXapp, rmr
 
 from ricxappframe.e2ap.asn1 import IndicationMsg, SubResponseMsg, SubRequestMsg, ControlRequestMsg, ActionDefinition, SubsequentAction, ARRAY, c_uint8
 
+from  ran_messages_pb2 import *
 
 
 from .utils.constants import Constants
@@ -100,10 +101,46 @@ class HWXapp:
         #metric_mgr = MetricManager(rmr_xapp)
         #metric_mgr.send_metric()
 
-        msgbuf = self.dummy_control_request()
-
+        #msgbuf = self.dummy_control_request()
+        msgbuf = self.e2ap_control_request(self.e2sm_dummy_control_buffer())
         self._rmr_send_w_meid(rmr_xapp,msgbuf,12040, bytes(gnb_list[0].inventory_name, 'ascii'))
         #rmr_xapp.rmr_send()
+    @staticmethod
+    def e2sm_dummy_control_buffer():
+        print("encoding initial ric indication request")
+        master_mess = RAN_message()
+        master_mess.msg_type = RAN_message_type.INDICATION_REQUEST
+        inner_mess = RAN_indication_request()
+        inner_mess.target_params.extend([RAN_parameter.GNB_ID, RAN_parameter.UE_LIST])
+        #inner_mess.target_params.extend([RAN_parameter.GNB_ID])
+        master_mess.ran_indication_request.CopyFrom(inner_mess)
+        buf = master_mess.SerializeToString()
+        return buf
+    @staticmethod
+    def e2ap_control_request(payload):
+        action_definitions = list()
+
+        action_definition = ActionDefinition()
+        action_definition.action_definition = payload
+        action_definition.size = len(action_definition.action_definition)
+
+        action_definitions.append(action_definition)
+
+        subsequent_actions = list()
+
+        subsequent_action = SubsequentAction()
+        subsequent_action.is_valid = 1
+        subsequent_action.subsequent_action_type = 1
+        subsequent_action.time_to_wait = 1
+
+        subsequent_actions.append(subsequent_action)
+        control_request = ControlRequestMsg()
+        try:
+            [lencc, bytescc] = control_request.encode(1, 1, 1, bytes([1]), bytes([1]), payload, 1)
+        except BaseException:
+            assert False
+        print("control request encoded {} bytes".format(lencc))
+        return bytescc
 
     def dummy_control_request():
         action_definitions = list()
