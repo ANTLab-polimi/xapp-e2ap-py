@@ -30,6 +30,8 @@ from .manager import *
 from .handler import *
 from mdclogpy import Logger
 
+from time import sleep
+
 SIZE = 256
 MRC_SEND = None
 MRC_RCV = None
@@ -105,6 +107,21 @@ class HWXapp:
         #msgbuf = self.e2ap_control_request(self.e2sm_dummy_control_buffer())
         msgbuf = self.e2ap_sub_request(self.e2sm_dummy_control_buffer())
         self._rmr_send_w_meid(rmr_xapp,msgbuf,12040, bytes(gnb_list[0].inventory_name, 'ascii'))
+        print("Waiting 5 seconds before starting printing messages")
+        sleep(5)
+        while True:
+            for (summary,sbuf) in rmr_xapp.rmr_get_messages():
+                print("_____________")
+                #print(summary)
+
+                indm = IndicationMsg()
+                indm.decode(summary["payload"])
+
+                resp = RAN_indication_response()
+                resp.ParseFromString(indm.indication_message)
+                print(resp)
+                print("_____________")
+            sleep(2)
         #rmr_xapp.rmr_send()
 
     @staticmethod
@@ -139,7 +156,7 @@ class HWXapp:
         subsequent_actions.append(subsequent_action)
         control_request = ControlRequestMsg()
         try:
-            [lencc, bytescc] = control_request.encode(1, 1, 1, bytes([1]), bytes([1]), payload, 0)
+            [lencc, bytescc] = control_request.encode(24, 1, 0, bytes([1]), bytes([1]), payload, 0)
         except BaseException:
             assert False
         print("control request encoded {} bytes".format(lencc))
@@ -154,7 +171,7 @@ class HWXapp:
         action_definition.action_definition = bytes([1])
         action_definition.size = len(action_definition.action_definition)
 
-        action_definitions.append(action_definition)
+        # action_definitions.append(action_definition)
 
         subsequent_actions = list()
 
@@ -162,14 +179,15 @@ class HWXapp:
         subsequent_action.is_valid = 1
         subsequent_action.subsequent_action_type = 1
         subsequent_action.time_to_wait = 1
-        subsequent_actions.append(subsequent_action)
+        # subsequent_actions.append(subsequent_action)
 
         sub_request = SubRequestMsg()
         try:
-            sub_request.encode(1, 1, 1, payload, [1], [1],
-                            bytes([1]), bytes([1]))
+            [lencc, bytescc] = sub_request.encode(24, 1, 0, payload, [1], [1],
+                            action_definitions, subsequent_actions)
         except BaseException:
             assert False
+        return bytescc
 
     def dummy_control_request():
         action_definitions = list()
