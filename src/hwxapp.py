@@ -120,6 +120,7 @@ class HWXapp:
                 resp = RAN_indication_response()
                 resp.ParseFromString(indm.indication_message)
                 print(resp)
+                rmr.rmr_free_msg(sbuf)
                 print("_____________")
             sleep(2)
         #rmr_xapp.rmr_send()
