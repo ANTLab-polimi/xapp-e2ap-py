@@ -20,30 +20,23 @@ from os import getenv
 from ricxappframe.xapp_frame import rmr, Xapp
 
 from ricxappframe.e2ap.asn1 import IndicationMsg, SubResponseMsg, SubRequestMsg, ControlRequestMsg, ActionDefinition, SubsequentAction, ARRAY, c_uint8
+from ricxappframe.entities.rnib.nb_identity_pb2 import NbIdentity
 
 from  ran_messages_pb2 import *
 
-
-from .utils.constants import Constants
-
-from mdclogpy import Logger
-
 from time import sleep
 
-class HWXapp:
+class e2apXapp:
 
-    def __init__(self):
+    def __init__(self,logic):
         fake_sdl = getenv("USE_FAKE_SDL", False)
         self._rmr_xapp = Xapp(rmr_port=4560,
                           rmr_wait_for_ready=True,
                           use_fake_sdl=False,
-                          entrypoint=self._post_init)
-        #self._rmr_xapp = RMRXapp(self._default_handler,
-        #                         config_handler=self._handle_config_change,
-        #                         rmr_port=4560,
-        #                         post_init=self._post_init,
-        #                         rmr_wait_for_ready=True,
-        #                         use_fake_sdl=False)
+                          entrypoint=logic)
+
+    def get_gnb_list() -> list(NbIdentity):
+        
     
     @staticmethod
     def _rmr_send_w_meid(rmr_xapp, payload, mtype, meid, retries=100):

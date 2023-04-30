@@ -1,4 +1,4 @@
-import src.hwxapp as hwxappp
+import src.e2ap_xapp as hwxappp
 
 
 def launchXapp():
