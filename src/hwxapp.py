@@ -17,7 +17,7 @@
 # ==================================================================================
 
 from os import getenv
-from ricxappframe.xapp_frame import RMRXapp, rmr
+from ricxappframe.xapp_frame import rmr, Xapp
 
 from ricxappframe.e2ap.asn1 import IndicationMsg, SubResponseMsg, SubRequestMsg, ControlRequestMsg, ActionDefinition, SubsequentAction, ARRAY, c_uint8
 
@@ -25,30 +25,25 @@ from  ran_messages_pb2 import *
 
 
 from .utils.constants import Constants
-from .manager import *
 
-from .handler import *
 from mdclogpy import Logger
 
 from time import sleep
 
-SIZE = 256
-MRC_SEND = None
-MRC_RCV = None
-MRC_BUF_RCV = None
-
-
 class HWXapp:
 
     def __init__(self):
-        print("this is the __init__")
         fake_sdl = getenv("USE_FAKE_SDL", False)
-        self._rmr_xapp = RMRXapp(self._default_handler,
-                                 config_handler=self._handle_config_change,
-                                 rmr_port=4560,
-                                 post_init=self._post_init,
-                                 rmr_wait_for_ready=True,
-                                 use_fake_sdl=False)
+        self._rmr_xapp = Xapp(rmr_port=4560,
+                          rmr_wait_for_ready=True,
+                          use_fake_sdl=False,
+                          entrypoint=self._post_init)
+        #self._rmr_xapp = RMRXapp(self._default_handler,
+        #                         config_handler=self._handle_config_change,
+        #                         rmr_port=4560,
+        #                         post_init=self._post_init,
+        #                         rmr_wait_for_ready=True,
+        #                         use_fake_sdl=False)
     
     @staticmethod
     def _rmr_send_w_meid(rmr_xapp, payload, mtype, meid, retries=100):
@@ -88,15 +83,16 @@ class HWXapp:
         print("this is the post init")
         rmr_xapp.logger.info("HWXapp.post_init :: post_init called")
         # self.sdl_alarm_mgr = SdlAlarmManager()
-        sdl_mgr = SdlManager(rmr_xapp)
+ #       sdl_mgr = SdlManager(rmr_xapp)
         #sdl_mgr.sdlGetGnbList()
         #a1_mgr = A1PolicyManager(rmr_xapp)
         #a1_mgr.startup()
-        sub_mgr = SubscriptionManager(rmr_xapp)
+#        sub_mgr = SubscriptionManager(rmr_xapp)
         #enb_list = sub_mgr.get_enb_list()
         #for enb in enb_list:
         #    sub_mgr.send_subscription_request(enb)
-        gnb_list = sub_mgr.get_gnb_list()
+        #gnb_list = sub_mgr.get_gnb_list()
+        gnb_list = self._rmr_xapp.get_list_gnb_ids()
         print(gnb_list)
         #for gnb in gnb_list:
         #    sub_mgr.send_subscription_request(gnb)
@@ -215,37 +211,15 @@ class HWXapp:
         print("control request encoded {} bytes".format(lencc))
         return bytescc
 
-    def _handle_config_change(self, rmr_xapp, config):
-        """
-        Function that runs at start and on every configuration file change.
-        """
-        rmr_xapp.logger.info("HWXapp.handle_config_change:: config: {}".format(config))
-        rmr_xapp.config = config  # No mutex required due to GIL
-
-    def _default_handler(self, rmr_xapp, summary, sbuf):
-        """
-        Function that processes messages for which no handler is defined
-        """
-        rmr_xapp.logger.info("HWXapp.default_handler called for msg type = " +
-                                   str(summary[rmr.RMR_MS_MSG_TYPE]))
-        rmr_xapp.rmr_free(sbuf)
-
-    def createHandlers(self):
-        """
-        Function that creates all the handlers for RMR Messages
-        """
-        HealthCheckHandler(self._rmr_xapp, Constants.RIC_HEALTH_CHECK_REQ)
-        A1PolicyHandler(self._rmr_xapp, Constants.A1_POLICY_REQ)
-        SubscriptionHandler(self._rmr_xapp,Constants.SUBSCRIPTION_REQ)
-
     def start(self, thread=False):
         """
         This is a convenience function that allows this xapp to run in Docker
         for "real" (no thread, real SDL), but also easily modified for unit testing
         (e.g., use_fake_sdl). The defaults for this function are for the Dockerized xapp.
         """
-        self.createHandlers()
-        self._rmr_xapp.run(thread)
+        #self.createHandlers()
+        #self._rmr_xapp.run(thread)
+        self._rmr_xapp.run()
 
     def stop(self):
         """
