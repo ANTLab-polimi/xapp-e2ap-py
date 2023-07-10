@@ -28,8 +28,9 @@ from time import sleep
 
 class e2apXapp:
 
-    SUB_REQ_RMR_ID = 12040
-    RIC_IND_RMR_ID = 12050
+    SUB_REQ_RMR_ID          = 12040
+    RIC_IND_RMR_ID          = 12050
+    RIC_CONTROL_REQ_RMR_ID  = 12040
 
     def __init__(self):
         fake_sdl = getenv("USE_FAKE_SDL", False)
@@ -171,6 +172,10 @@ class e2apXapp:
         print("control request encoded {} bytes".format(lencc))
         return bytescc
 
+    def send_e2ap_control_request(self,payload, gnb_id):
+        e2ap_buffer = self.e2ap_control_request(payload)
+        self._rmr_send_w_meid(e2ap_buffer,self.RIC_CONTROL_REQ_RMR_ID, bytes(gnb_id, 'ascii'))
+        pass
 
     def send_e2ap_sub_request(self,payload, gnb_id):
 
