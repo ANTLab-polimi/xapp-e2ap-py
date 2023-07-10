@@ -1,0 +1,2 @@
+[submodule "base-xapp/oai-oran-protolib"]
+	url = https://github.com/EugenioMoro/oai-oran-protolib.git
