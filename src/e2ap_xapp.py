@@ -133,6 +133,9 @@ class e2apXapp:
             queued_msg.append(summary)
             rmr.rmr_free_msg(sbuf)
         return queued_msg
+    
+    def rmr_receive_blocking(self):
+        return self.engine._rmr_loop.rcv_queue.get(block=True)
 
     @staticmethod
     def e2sm_dummy_control_buffer():
@@ -169,7 +172,7 @@ class e2apXapp:
             [lencc, bytescc] = control_request.encode(24, 1, 0, bytes([1]), bytes([1]), payload, 0)
         except BaseException:
             assert False
-        print("control request encoded {} bytes".format(lencc))
+        # print("control request encoded {} bytes".format(lencc))
         return bytescc
 
     def send_e2ap_control_request(self,payload, gnb_id):
@@ -236,7 +239,7 @@ class e2apXapp:
             [lencc, bytescc] = control_request.encode(1, 1, 1, bytes([1]), bytes([1]), bytes([1]), 1)
         except BaseException:
             assert False
-        print("control request encoded {} bytes".format(lencc))
+        #print("control request encoded {} bytes".format(lencc))
         return bytescc
 
     def start(self, thread=False):

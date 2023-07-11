@@ -1,0 +1,6 @@
+[submodule "xapp-oai"]
+	path = xapp-oai
+	url = https://github.com/wineslab/xapp-oai.git
+[submodule "oai-oran-protolib"]
+	path = oai-oran-protolib
+	url = https://github.com/wineslab/oai-oran-protolib.git
