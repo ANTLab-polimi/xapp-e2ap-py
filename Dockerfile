@@ -33,7 +33,7 @@ ENV RMR_RTG_SVC="9999" \
 
 # install git and build essential
 #RUN apk add --no-cache --update alpine-sdk wget dpkg cmake openrc openssh
-RUN apt-get update && apt-get install -y git build-essential gfortran libopenblas-dev python3 python3-pip cmake
+RUN apt-get update && apt-get install -y git build-essential gfortran libopenblas-dev python3 python3-pip cmake openssh-server
 
 # Install py-plt
 WORKDIR ${STAGE_DIR}
@@ -72,17 +72,25 @@ RUN git clone --branch ${E2AP_VERSION} https://github.com/o-ran-sc/ric-plt-libe2
 COPY . ${XAPP_DIR}
 WORKDIR ${XAPP_DIR}
 
+# cleanup
+RUN rm -rf ${STAGE_DIR}/*
+
 # ssh server
+RUN mkdir /var/run/sshd
+RUN echo 'root:pass' | chpasswd
 RUN mkdir -p /root/.ssh \
     && chmod 0700 /root/.ssh \
     && echo 'root:pass' | chpasswd \
     && mkdir -p /run/openrc \
     && touch /run/openrc/softlevel
 
-EXPOSE 22
-#CMD ["/usr/sbin/sshd", "-D"]
-#ENTRYPOINT ["sh", "-c", "rc-status; rc-service sshd start;", "tail", "-f", "/dev/null"]
+RUN sed 's@session\s*required\s*pam_loginuid.so@session optional \
+    pam_loginuid.so@g' -i /etc/pam.d/sshd
+RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' \
+    /etc/ssh/sshd_config
 
-# cleanup
-RUN rm -rf ${STAGE_DIR}/*
-ENTRYPOINT ["/bin/bash"]
+#expose port 22
+EXPOSE 22
+
+#Commands to be executed by default
+CMD ["/usr/sbin/sshd","-D"]
