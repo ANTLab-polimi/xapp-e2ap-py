@@ -28,7 +28,7 @@ from time import sleep
 
 class e2apXapp:
 
-    SUB_REQ_RMR_ID          = 12040
+    SUB_REQ_RMR_ID          = 12010
     RIC_IND_RMR_ID          = 12050
     RIC_CONTROL_REQ_RMR_ID  = 12040
 
