@@ -32,7 +32,7 @@ ENV RMR_RTG_SVC="9999" \
   DBAAS_SERVICE_PORT=${DBAAS_SERVICE_PORT}
 
 # install git and build essential
-RUN apk add --update alpine-sdk wget dpkg cmake openrc openssh
+RUN apk add --no-cache --update alpine-sdk wget dpkg cmake openrc openssh
 #RUN apt-get update && apt-get install git && apt-get install build-essential
 
 # Install py-plt
@@ -79,4 +79,9 @@ RUN mkdir -p /root/.ssh \
 EXPOSE 22
 #CMD ["/usr/sbin/sshd", "-D"]
 #ENTRYPOINT ["sh", "-c", "rc-status; rc-service sshd start;", "tail", "-f", "/dev/null"]
+
+# cleanup
+RUN apk del alpine-sdk wget dpkg cmake
+RUN rm -rf ${STAGE_DIR}/*
+
 ENTRYPOINT ["tail", "-f", "/dev/null"]
