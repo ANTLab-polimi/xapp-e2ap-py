@@ -18,8 +18,8 @@ def xappLogic():
     # subscription requests
     for gnb in gnb_id_list:
         e2sm_buffer = e2sm_report_request_buffer()
-        # connector.send_e2ap_sub_request(e2sm_buffer,gnb)
-        connector.send_e2ap_control_request(e2sm_buffer,gnb)
+        connector.send_e2ap_sub_request(e2sm_buffer,gnb)
+        #connector.send_e2ap_control_request(e2sm_buffer,gnb)
     
     # read loop
     sleep_time = 4
