@@ -1,46 +1,88 @@
-# ==================================================================================
-#   Copyright (c) 2020 Samsung Electronics Co., Ltd. All Rights Reserved.
-#
-#   Licensed under the Apache License, Version 2.0 (the "License");
-#   you may not use this file except in compliance with the License.
-#   You may obtain a copy of the License at
-#
-#          http://www.apache.org/licenses/LICENSE-2.0
-#
-#   Unless required by applicable law or agreed to in writing, software
-#   distributed under the License is distributed on an "AS IS" BASIS,
-#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#   See the License for the specific language governing permissions and
-#   limitations under the License.
-# ==================================================================================
-FROM python:3.8-alpine
+#------------------------------------
+ARG SCHEMA_PATH=schemas
+ARG XAPP_DIR=python_xapp
+ARG DBAAS_SERVICE_HOST=10.0.2.12
+ARG DBAAS_SERVICE_PORT="6379"
 
-# copy rmr libraries from builder image in lieu of an Alpine package
-COPY --from=nexus3.o-ran-sc.org:10002/o-ran-sc/bldr-alpine3-rmr:4.0.5 /usr/local/lib64/librmr* /usr/local/lib64/
-# RMR setup
-RUN mkdir -p /opt/route/
-COPY init/test_route.rt /opt/route/test_route.rt
-ENV LD_LIBRARY_PATH /usr/local/lib/:/usr/local/lib64
-ENV RMR_SEED_RT /opt/route/test_route.rt
+#==================================================================================
+FROM ubuntu:20.04
+#FROM python:3.8-alpine
 
-# sdl needs gcc
-RUN apk update && apk add gcc musl-dev bash
+# copy local repo
+ARG XAPP_DIR="/python_xapp"
+ARG STAGE_DIR="/tmp"
 
-# Install
-COPY setup.py /tmp
-COPY README.md /tmp
-COPY LICENSE.txt /tmp/
-COPY src/ /tmp/src
-COPY init/ /tmp/init
-RUN pip install /tmp
 
-# Env - TODO- Configmap
-ENV PYTHONUNBUFFERED 1
-ENV CONFIG_FILE=/tmp/init/config-file.json
+# to override repo base, pass in repo argument when running docker build:
+# docker build --build-arg REPOBASE=http://abc.def.org . ....
+ARG SCHEMA_FILE
+ARG SCHEMA_PATH
+ARG MDC_VER=0.0.4-1
+ARG RMR_VER=4.0.5
+ARG RNIB_VER=1.0.0
+ARG E2AP_VERSION=1.1.0
+ARG DEBIAN_FRONTEND=noninteractive
 
-# For Default DB connection, modify for resp kubernetes env
-ENV DBAAS_SERVICE_PORT=6379
-ENV DBAAS_SERVICE_HOST=service-ricplt-dbaas-tcp.ricplt.svc.cluster.local
+ENV RMR_RTG_SVC="9999" \
+  RMR_SEED_RT="/python_xapp/routes.txt" \
+  LD_LIBRARY_PATH="/usr/local/lib:/usr/local/libexec" \
+  VERBOSE=0 \
+  CONFIG_FILE=/opt/ric/config/config-file.json \
+  DBAAS_SERVICE_HOST=${DBAAS_SERVICE_HOST} \
+  DBAAS_SERVICE_PORT=${DBAAS_SERVICE_PORT}
 
-#Run
-CMD run-hw-python.py
+# install git and build essential
+#RUN apk add --no-cache --update alpine-sdk wget dpkg cmake openrc openssh
+RUN apt-get update && apt-get install -y git build-essential gfortran libopenblas-dev python3 python3-pip cmake
+
+# Install py-plt
+WORKDIR ${STAGE_DIR}
+RUN git clone https://github.com/o-ran-sc/ric-plt-xapp-frame-py.git
+WORKDIR ric-plt-xapp-frame-py
+RUN git checkout e-release
+RUN python3 -m pip install .
+
+# install protobuf
+RUN python3 -m pip install protobuf
+
+# install cvxpy
+RUN python3 -m pip install cvxpy
+
+# install rmr
+WORKDIR ${STAGE_DIR}
+RUN  git clone --branch e-release https://gerrit.oran-osc.org/r/ric-plt/lib/rmr \
+     && cd rmr \
+     && mkdir .build; cd .build \
+     && echo "<<<installing rmr devel headers>>>" \
+     && cmake .. -DDEV_PKG=1; make install \
+     && echo "<<< installing rmr .so>>>" \
+     && cmake .. -DPACK_EXTERNALS=1; make install \
+     && echo "cleanup" \
+     && cd ../.. \
+     && rm -rf rmr
+
+# install e2ap lib
+WORKDIR ${STAGE_DIR}
+RUN git clone --branch ${E2AP_VERSION} https://github.com/o-ran-sc/ric-plt-libe2ap.git \
+  && cd ric-plt-libe2ap \
+  && cmake . \
+  && make \
+  && make install
+
+COPY . ${XAPP_DIR}
+WORKDIR ${XAPP_DIR}
+
+# ssh server
+RUN mkdir -p /root/.ssh \
+    && chmod 0700 /root/.ssh \
+    && echo 'root:pass' | chpasswd \
+    && mkdir -p /run/openrc \
+    && touch /run/openrc/softlevel
+
+EXPOSE 22
+#CMD ["/usr/sbin/sshd", "-D"]
+#ENTRYPOINT ["sh", "-c", "rc-status; rc-service sshd start;", "tail", "-f", "/dev/null"]
+
+# cleanup
+RUN rm -rf ${STAGE_DIR}/*
+ENTRYPOINT ["/bin/bash"]
