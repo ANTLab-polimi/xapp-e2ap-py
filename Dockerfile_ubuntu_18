@@ -1,8 +1,12 @@
 # Stage 1: Build Stage
 FROM ubuntu:18.04
-ARG DEBIAN_FRONTEND=noninteractive
 
-ARG XAPP_DIR="/python_xapp" \
+ARG SCHEMA_PATH=schemas \
+    XAPP_DIR=python_xapp \
+    DBAAS_SERVICE_HOST=10.0.2.12 \
+    DBAAS_SERVICE_PORT="6379" \
+    DEBIAN_FRONTEND=noninteractive \
+    XAPP_DIR="/python_xapp" \
     STAGE_DIR="/tmp" \
     SCHEMA_FILE \
     SCHEMA_PATH \
@@ -41,7 +45,8 @@ RUN apt-get update && apt-get install -y \
         libssl-dev \
         openssl \
         libffi-dev \
-    libreadline-gplv2-dev libncursesw5-dev libssl-dev libsqlite3-dev tk-dev libgdbm-dev libc6-dev libbz2-dev
+    libreadline-gplv2-dev libncursesw5-dev libssl-dev libsqlite3-dev tk-dev libgdbm-dev libc6-dev libbz2-dev \
+    openssh-server
 
 # Download and install Python 3.9
 RUN curl -O https://www.python.org/ftp/python/3.9.6/Python-3.9.6.tgz \
@@ -61,10 +66,7 @@ RUN wget https://github.com/Kitware/CMake/releases/download/v3.27.0-rc5/cmake-3.
 
 # Install py-plt
 WORKDIR ${STAGE_DIR}
-RUN git clone https://github.com/o-ran-sc/ric-plt-xapp-frame-py.git
-WORKDIR ric-plt-xapp-frame-py
-RUN git checkout e-release
-RUN python3.9 -m pip install .
+RUN git clone https://github.com/o-ran-sc/ric-plt-xapp-frame-py.git && cd ric-plt-xapp-frame-py && git checkout e-release && python3.9 -m pip install .
 
 # Install cvxpy
 RUN python3.9 -m pip install cvxpy
@@ -105,7 +107,6 @@ RUN mkdir -p /root/.ssh \
     && touch /run/openrc/softlevel
 
 EXPOSE 22
-# cleanup
 RUN rm -rf ${STAGE_DIR}/*
 
 ENTRYPOINT ["/bin/bash"]
