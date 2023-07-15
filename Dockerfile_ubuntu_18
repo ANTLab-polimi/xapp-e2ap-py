@@ -1,0 +1,111 @@
+# Stage 1: Build Stage
+FROM ubuntu:18.04
+ARG DEBIAN_FRONTEND=noninteractive
+
+ARG XAPP_DIR="/python_xapp" \
+    STAGE_DIR="/tmp" \
+    SCHEMA_FILE \
+    SCHEMA_PATH \
+    MDC_VER="0.0.4-1" \
+    RMR_VER="4.0.5" \
+    RNIB_VER="1.0.0" \
+    E2AP_VERSION="1.1.0"
+
+ENV RMR_RTG_SVC="9999" \
+  RMR_SEED_RT="/python_xapp/routes.txt" \
+  LD_LIBRARY_PATH="/usr/local/lib:/usr/local/libexec" \
+  VERBOSE=0 \
+  CONFIG_FILE=/opt/ric/config/config-file.json \
+  DBAAS_SERVICE_HOST=${DBAAS_SERVICE_HOST} \
+  DBAAS_SERVICE_PORT=${DBAAS_SERVICE_PORT}
+
+
+# Install necessary build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    python3-dev \
+    zlib1g-dev \
+    git \
+    build-essential \
+        python-dev \
+        python-setuptools \
+        python-pip \
+        python-smbus \
+        libncursesw5-dev \
+        libgdbm-dev \
+        libc6-dev \
+        zlib1g-dev \
+        libsqlite3-dev \
+        tk-dev \
+        libssl-dev \
+        openssl \
+        libffi-dev \
+    libreadline-gplv2-dev libncursesw5-dev libssl-dev libsqlite3-dev tk-dev libgdbm-dev libc6-dev libbz2-dev
+
+# Download and install Python 3.9
+RUN curl -O https://www.python.org/ftp/python/3.9.6/Python-3.9.6.tgz \
+    && tar -xf Python-3.9.6.tgz \
+    && cd Python-3.9.6 \
+    && ./configure --enable-optimizations \
+    && make install
+
+# Install newer version of CMake
+RUN apt install -y wget libffi-dev && ldconfig
+RUN wget https://github.com/Kitware/CMake/releases/download/v3.27.0-rc5/cmake-3.27.0-rc5-linux-x86_64.tar.gz \
+    && tar -xf cmake-3.27.0-rc5-linux-x86_64.tar.gz \
+    && cd cmake-3.27.0-rc5-linux-x86_64 \
+    && cp -R bin /usr/local/ \
+    && cp -R share /usr/local/ \
+    && cp -R doc /usr/local/
+
+# Install py-plt
+WORKDIR ${STAGE_DIR}
+RUN git clone https://github.com/o-ran-sc/ric-plt-xapp-frame-py.git
+WORKDIR ric-plt-xapp-frame-py
+RUN git checkout e-release
+RUN python3.9 -m pip install .
+
+# Install cvxpy
+RUN python3.9 -m pip install cvxpy
+
+# Install protobuf
+RUN python3.9 -m pip install protobuf
+
+
+# install rmr
+WORKDIR ${STAGE_DIR}
+RUN  git clone --branch e-release https://gerrit.oran-osc.org/r/ric-plt/lib/rmr \
+     && cd rmr \
+     && mkdir .build; cd .build \
+     && echo "<<<installing rmr devel headers>>>" \
+     && cmake .. -DDEV_PKG=1; make install \
+     && echo "<<< installing rmr .so>>>" \
+     && cmake .. -DPACK_EXTERNALS=1; make install \
+     && echo "cleanup" \
+     && cd ../.. \
+     && rm -rf rmr
+
+# install e2ap lib
+WORKDIR ${STAGE_DIR}
+RUN git clone --branch ${E2AP_VERSION} https://github.com/o-ran-sc/ric-plt-libe2ap.git \
+  && cd ric-plt-libe2ap \
+  && cmake . \
+  && make \
+  && make install
+
+COPY . ${XAPP_DIR}
+WORKDIR ${XAPP_DIR}
+
+# ssh server 
+RUN mkdir -p /root/.ssh \
+    && chmod 0700 /root/.ssh \
+    && echo 'root:pass' | chpasswd \
+    && mkdir -p /run/openrc \
+    && touch /run/openrc/softlevel
+
+EXPOSE 22
+# cleanup
+RUN rm -rf ${STAGE_DIR}/*
+
+ENTRYPOINT ["/bin/bash"]
