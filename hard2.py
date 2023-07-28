@@ -11,13 +11,13 @@ import csv
 import sys
 
 NO_UE_SLEEP_INTERVAL_S = 1
-LOOP_SLEEP_INTERVAL_S = 1
+LOOP_SLEEP_INTERVAL_S = 2
 MAX_PRB_DL = 106
 USE_BS_THR = True
 
 UE1_WEIGHT = 0.1
-UE2_WEIGHT = 0.1
-UE3_WEIGHT = 0.1
+UE2_WEIGHT = 1
+UE3_WEIGHT = 2
 UE4_WEIGHT = 0.1
 UE5_WEIGHT = 0.1
 UE6_WEIGHT = 0.1
@@ -25,9 +25,9 @@ UE7_WEIGHT = 0.1
 UE8_WEIGHT = 0.1
 
 
-UE1_GBR_MBPS = 30
-UE2_GBR_MBPS = 10
-UE3_GBR_MBPS = 10
+UE1_GBR_MBPS = 15
+UE2_GBR_MBPS = 15
+UE3_GBR_MBPS = 20
 UE4_GBR_MBPS = 10
 UE5_GBR_MBPS = 10
 UE6_GBR_MBPS = 10
@@ -36,7 +36,7 @@ UE8_GBR_MBPS = 10
 
 UE1_IS_GBR = True
 UE2_IS_GBR = True
-UE3_IS_GBR = False
+UE3_IS_GBR = True
 UE4_IS_GBR = True
 UE5_IS_GBR = True
 UE6_IS_GBR = True
@@ -53,6 +53,7 @@ ue3_data = []
 ue4_data = []
 
 ue_data = [ue1_data, ue2_data, ue3_data, ue4_data]
+CORR_F = 1.3
 
 def write_to_csv():
     """Write data to a CSV file"""
@@ -72,6 +73,8 @@ def signal_handler(sig, frame):
     write_to_csv()
     print("done")
     sys.exit(0)
+
+ue_weights = {}
 
 def xappLogic():
 
@@ -113,6 +116,7 @@ def xappLogic():
             ues_to_change = list()
             ue_required_prb_gbr = {}
             ue_required_tbs_gbr = {}
+            ue_tbs_per_prb_dl = {}
 
             # loop ues and check if any must be set to GBR or not set to GBR, but don't set TBS yet
             for idx, ue in enumerate(ue_info_list):
@@ -121,6 +125,10 @@ def xappLogic():
                 print("\tUE {} - isGBR {} - THR {} - SLA {} - Bsize {}"
                       .format(ue.rnti,ue.is_GBR,round((ue.tbs_avg_dl*8)/1e3,2),ue_gbr_mbps_info[idx],ue.dl_mac_buffer_occupation))
                 ue_data[idx].append((time(), round((ue.tbs_avg_dl*8)/1e3,2),ue.is_GBR))
+                
+                ue_weights[ue.rnti] = ue_gbr_weights[idx]
+
+                ue_tbs_per_prb_dl[ue.rnti] = ue.avg_tbs_per_prb_dl
                 if not ue_needs_gbr_mask[idx]:
                     print("\tskipping because no SLA set for this ue")
                     continue
@@ -142,8 +150,8 @@ def xappLogic():
                         this_ue.is_GBR = True
                         ues_to_change.append(this_ue)
                         gbr_tbs = (ue_gbr_mbps_info[idx]/8)*1e3
-                        ue_required_tbs_gbr[ue.rnti] = gbr_tbs
-                        ue_required_prb_gbr[ue.rnti] = gbr_tbs/ue.avg_tbs_per_prb_dl
+                        ue_required_tbs_gbr[ue.rnti] = gbr_tbs*CORR_F
+                        ue_required_prb_gbr[ue.rnti] = (gbr_tbs*CORR_F)/ue.avg_tbs_per_prb_dl
                         print("\t\t{} PRBs are required for this ue".format(ceil(gbr_tbs/ue.avg_tbs_per_prb_dl)))
                     continue
 
@@ -163,8 +171,8 @@ def xappLogic():
 
                         # we also compute how many prbs are required to guarantee the gbr
                         gbr_tbs = (ue_gbr_mbps_info[idx]/8)*1e3
-                        ue_required_tbs_gbr[ue.rnti] = gbr_tbs
-                        ue_required_prb_gbr[ue.rnti] = gbr_tbs/ue.avg_tbs_per_prb_dl
+                        ue_required_tbs_gbr[ue.rnti] = gbr_tbs*CORR_F
+                        ue_required_prb_gbr[ue.rnti] = (gbr_tbs*CORR_F)/ue.avg_tbs_per_prb_dl
                         print("\t\t{} PRBs are required for this ue".format(ceil(gbr_tbs/ue.avg_tbs_per_prb_dl)))
                         print("")
                         continue
@@ -197,7 +205,7 @@ def xappLogic():
                         for ue_i in range(0,len(ues_to_change)):
                             ue_m = ues_to_change[ue_i]
                             if ue_m.is_GBR:
-                                opti_ues[ue_m.rnti] = Ue(id=ue_m.rnti, weight=ue_required_prb_gbr[ue_m.rnti], control_mess=ue_m, value=1)
+                                opti_ues[ue_m.rnti] = Ue(id=ue_m.rnti, weight=ue_required_prb_gbr[ue_m.rnti], control_mess=ue_m, value=ue_weights[ue_m.rnti])
                                 #ue_m.tbs_dl_toapply = ue_required_tbs_gbr[ue_m.rnti] * ue_gbr_weights[ue_i]
                                 #ue_m.tbs_ul_toapply = (5/8)*1e3 # hardcoding gbr 5mbps in ul
                                 #print("\t\t Assigning TBS {} to UE {}".format(round(ue_m.tbs_dl_toapply),ue_m.rnti))
@@ -211,6 +219,7 @@ def xappLogic():
                         print("\t\t {}".format(prob))
                         for ue in opti_ues.values():
                             print(ue.scheduled.value)
+                        rem_prbs = MAX_PRB_DL
                         for ue_i in range(0,len(ues_to_change)):
                             ue_m = ues_to_change[ue_i]
                             if ue_m.is_GBR:
@@ -218,10 +227,10 @@ def xappLogic():
                                     ue_m.tbs_dl_toapply = ue_required_tbs_gbr[ue_m.rnti]
                                     ue_m.tbs_ul_toapply = (5/8)*1e3 # hardcoding gbr 5mbps in ul
                                     print("\t\t Assigning TBS {} to UE {}".format(round(ue_m.tbs_dl_toapply),ue_m.rnti))
+                                    rem_prbs = rem_prbs - opti_ues[ue_m.rnti].weight
                                 else:
                                     print("\t\tUE {} cannot be scheduled as GBR".format(ue_m.rnti))
                                     ue_m.is_GBR = False
-
 
             # now finally build control message and send, but only if there is any ue to change
             if ues_to_change:
