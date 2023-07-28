@@ -1,3 +1,5 @@
+*.csv
+*.inc
 # misc cruft
 *.log
 log.txt
