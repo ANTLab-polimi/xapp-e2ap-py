@@ -9,8 +9,8 @@ import numpy as np
 
 
 NO_UE_SLEEP_INTERVAL_S = 1
-LOOP_SLEEP_INTERVAL_S = 0.2
-MAX_PRB_DL = 106
+LOOP_SLEEP_INTERVAL_S = 1
+MAX_PRB_DL = 70
 
 UE1_WEIGHT = 0.1
 UE2_WEIGHT = 0.1
@@ -22,9 +22,9 @@ UE7_WEIGHT = 0.1
 UE8_WEIGHT = 0.1
 
 
-UE1_GBR_MBPS = 10
+UE1_GBR_MBPS = 8
 UE2_GBR_MBPS = 10
-UE3_GBR_MBPS = 10
+UE3_GBR_MBPS = 5
 UE4_GBR_MBPS = 10
 UE5_GBR_MBPS = 10
 UE6_GBR_MBPS = 10
@@ -33,7 +33,7 @@ UE8_GBR_MBPS = 10
 
 UE1_IS_GBR = True
 UE2_IS_GBR = True
-UE3_IS_GBR = False
+UE3_IS_GBR = True
 UE4_IS_GBR = True
 UE5_IS_GBR = True
 UE6_IS_GBR = True
@@ -44,6 +44,10 @@ ue_gbr_weights = [UE1_WEIGHT, UE2_WEIGHT, UE3_WEIGHT, UE4_WEIGHT, UE5_WEIGHT, UE
 ue_gbr_mbps_info = [UE1_GBR_MBPS, UE2_GBR_MBPS, UE3_GBR_MBPS, UE4_GBR_MBPS, UE5_GBR_MBPS, UE6_GBR_MBPS, UE7_GBR_MBPS, UE8_GBR_MBPS]
 ue_needs_gbr_mask = [UE1_IS_GBR, UE2_IS_GBR, UE3_IS_GBR, UE4_IS_GBR, UE5_IS_GBR, UE6_IS_GBR, UE7_IS_GBR, UE8_IS_GBR]
 
+GBR_SCALE_FACTOR = 1.2
+TBS_SCALE_FACOTR = 1.2
+
+FORCE_GBR = True
 
 def xappLogic():
 
@@ -58,7 +62,7 @@ def xappLogic():
     print("---------")
 
     print("Setting max PRB DL to {}".format(MAX_PRB_DL))
-    set_gnb_max_dl_prb(connector, MAX_PRB_DL, gnb_id)
+    #set_gnb_max_dl_prb(connector, MAX_PRB_DL, gnb_id)
 
     iteration = 0
 
@@ -89,14 +93,16 @@ def xappLogic():
         # loop ues and check if any must be set to GBR or not set to GBR, but don't set TBS yet
         for idx, ue in enumerate(ue_info_list):
 
-            print("\tUE {} - isGBR {} - THR {} - SLA {} - Bsize {} - TBS_per_PRB {}"
-                  .format(ue.rnti,ue.is_GBR,round((ue.tbs_avg_dl*8)/1e3,2),ue_gbr_mbps_info[idx],ue.dl_mac_buffer_occupation, ue.avg_tbs_per_prb_dl))
+            print("\tUE {} - isGBR {} - THR {} - SLA {} - Bsize {} - avg TBS {} - True PRBs {}"
+                  .format(ue.rnti,ue.is_GBR,round((ue.tbs_avg_dl*8)/1e3,2),ue_gbr_mbps_info[idx],ue.dl_mac_buffer_occupation, ue.tbs_avg_dl, ue.avg_prbs_dl))
             
             ue_prb_per_tbs[ue.rnti] = ue.avg_tbs_per_prb_dl
 
             if not ue_needs_gbr_mask[idx]:
                 print("\tskipping because no SLA set for this ue")
                 continue
+
+            
 
             if ue.is_GBR:
                 # if ue is gbr then we check if it is making traffic by checking the buffer occupation
@@ -118,7 +124,7 @@ def xappLogic():
                     ue_required_tbs_gbr[ue.rnti] = gbr_tbs
                     ue_required_prb_gbr[ue.rnti] = gbr_tbs/ue.avg_tbs_per_prb_dl
                     ue_prb_per_tbs[ue.rnti] = ue.avg_tbs_per_prb_dl
-                    print("\t\t{} PRBs are required for this ue".format(ceil(gbr_tbs/ue.avg_tbs_per_prb_dl)))
+                    print("\t\t{} PRBs are required for this ue, TBS {}".format(ceil(gbr_tbs/ue.avg_tbs_per_prb_dl),gbr_tbs))
                 continue
 
             # now check if the the bu is high, if the ue is not gbr and if the thr is lowe than its gbr
@@ -126,7 +132,7 @@ def xappLogic():
             if ue.dl_mac_buffer_occupation > 100:
                 # compute tp from tbs
                 thr = (ue.tbs_avg_dl*8)/1e3
-                if thr < UE1_GBR_MBPS:
+                if thr < UE1_GBR_MBPS or FORCE_GBR:
                     # this ue requires gbr
                     print("\t\tnow requires GBR because throughput is below SLA")
                     print("\t\t Thrp. {} Mbps - SLA {} Mbps".format(round(thr), round(ue_gbr_mbps_info[idx])))
@@ -171,9 +177,10 @@ def xappLogic():
                     opti_ues = {}
                     for ue_i in range(0,len(ues_to_change)):
                         ue_m = ues_to_change[ue_i]
+                        print("porcodio ue {}".format(ue_m.rnti))
                         if ue_m.is_GBR:
                             #print("\t\tGiving this spectreff {}".format(ue_prb_per_tbs[ue_m.rnti]))
-                            opti_ues[ue_m.rnti] = Ue(id=ue_m.rnti, target_sla=ue_required_tbs_gbr[ue.rnti],
+                            opti_ues[ue_m.rnti] = Ue(id=ue_m.rnti, target_sla=ue_required_tbs_gbr[ue_m.rnti],
                                                      spect_eff=ue_prb_per_tbs[ue_m.rnti],
                                                      control_mess=ue_m)
                     # build cvx problem
@@ -188,9 +195,8 @@ def xappLogic():
                     prob = cp.Problem(objective, constraints)
                     prob.solve()
                     print("\t\t building and solving problem")
-                    print("\t\t {}".format(prob))
                     for ue in opti_ues.values():
-                        print("\t\t UE {} - prbs {} - slaviol {}".format(ue.id,ue.allocated_prbs.value,ue.sla_violation.value))
+                        print("\t\t UE {} - prbs {} - slaviol {}".format(ue.id,ue.allocated_prbs.value,ue.sla_violation.value*8/1e3))
                     for ue_i in range(0,len(ues_to_change)):
                         ue_m = ues_to_change[ue_i]
                         if ue_m.is_GBR:
